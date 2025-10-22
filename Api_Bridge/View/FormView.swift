@@ -9,18 +9,28 @@ import SwiftUI
 
 
 
+/// Vista que permite crear o editar una instancia de `Persona`.
 struct FormView: View {
+    /// Texto ingresado en el campo «Nombre».
     @State private var nombre = ""
+    /// Texto ingresado en el campo «Apellido».
     @State private var apellido = ""
+    /// Selección actual del segmento «Sexo».
     @State private var sexo = "Hombre"
+    /// Fecha capturada en el selector de nacimiento.
     @State private var fechaNacimiento = Date()
+    /// Opción elegida en el selector de rol.
     @State private var rol = "Estudiante"
+    /// Controla cuál campo de texto tiene foco dentro del formulario.
     @FocusState private var focusedField: Field?
-    
+
+    /// Acción de entorno utilizada para cerrar la vista al finalizar.
     @Environment(\.dismiss) private var dismiss
 
+    /// Persona recibida cuando el formulario se utiliza en modo edición.
     let persona: Persona?
 
+    /// Inicializa el formulario precargando la información existente (si aplica).
     init(persona: Persona? = nil) {
         self.persona = persona
         _nombre = State(initialValue: persona?.nombre ?? "")
@@ -30,16 +40,24 @@ struct FormView: View {
         _rol = State(initialValue: persona?.rol ?? "Estudiante")
     }
 
+    /// Campos de texto que pueden requerir foco del teclado.
     enum Field { case nombre, apellido }
 
+    /// Opciones visibles para la selección de sexo.
     private let sexos = ["Hombre", "Mujer", "Otro"]
+    /// Opciones visibles para la selección de rol.
     private let roles = ["Estudiante", "Profesor", "Otro"]
 
+    /// Versión sin espacios del nombre para validaciones y envío.
     private var nombreLimpio: String { nombre.trimmingCharacters(in: .whitespacesAndNewlines) }
+    /// Versión sin espacios del apellido para validaciones y envío.
     private var apellidoLimpio: String { apellido.trimmingCharacters(in: .whitespacesAndNewlines) }
+    /// Indicador que valida la presencia de nombre y apellido.
     private var isValid: Bool { !nombreLimpio.isEmpty && !apellidoLimpio.isEmpty }
 
+    /// Formateador reutilizable para fechas en formato ISO-8601.
     private static let isoFormatter = ISO8601DateFormatter()
+    /// Formateador que produce la cadena esperada por el backend (`yyyy-MM-dd`).
     private static let displayDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = .init(identifier: "en_US_POSIX")
@@ -47,6 +65,7 @@ struct FormView: View {
         return formatter
     }()
 
+    /// Intenta convertir distintos formatos de fecha en un objeto `Date`.
     private static func parseDate(_ text: String?) -> Date? {
         guard let text = text else { return nil }
         if let d = isoFormatter.date(from: text) { return d }
@@ -56,6 +75,7 @@ struct FormView: View {
         return nil
     }
 
+    /// Traduce los códigos almacenados en la base al texto mostrado en el formulario.
     private static func displaySexo(_ s: String?) -> String {
         switch (s ?? "").lowercased() {
         case "h", "hombre": return "Hombre"
@@ -65,8 +85,9 @@ struct FormView: View {
         }
     }
 
+    /// Construye la jerarquía visual del formulario de captura.
     var body: some View {
-        Form {                                  
+        Form {
             Section("Datos personales") {
                 LabeledContent("Nombre") {
                     TextField("", text: $nombre)
@@ -122,6 +143,7 @@ struct FormView: View {
         .formStyle(.grouped)                    // ← estilo iOS clásico
     }
 
+    /// Arma la petición HTTP para guardar o actualizar la persona.
     private func handleGuardar() {
         guard isValid else {
             print("Formulario inválido")
@@ -145,6 +167,7 @@ struct FormView: View {
         }
 
         let api = ApiBridge()
+        // Una vez que la petición responde, cerramos el formulario.
         let completion: (String?) -> Void = { _ in
             DispatchQueue.main.async { dismiss() }
         }
@@ -156,6 +179,7 @@ struct FormView: View {
         }
     }
 
+    /// Convierte la selección de sexo a la codificación esperada por la API.
     private static func sexoCode(for display: String) -> String {
         switch display.lowercased() {
         case "hombre": return "h"
@@ -164,6 +188,7 @@ struct FormView: View {
         }
     }
 
+    /// Obtiene el identificador de rol que espera el backend para cada opción.
     private static func roleId(for role: String) -> Int {
         switch role {
         case "Estudiante": return 1
@@ -172,6 +197,7 @@ struct FormView: View {
         }
     }
 
+    /// Modelo intermedio que se codifica a JSON para enviar a la API.
     private struct PersonaBody: Encodable {
         let id_persona: Int
         let nombre: String
