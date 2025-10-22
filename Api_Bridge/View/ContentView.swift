@@ -8,6 +8,7 @@
 import SwiftUI
 import Foundation
 
+/// Representa a una persona recibida desde el servicio remoto.
 struct Persona: Codable, Identifiable {
     let id: Int
     let nombre: String?
@@ -17,12 +18,16 @@ struct Persona: Codable, Identifiable {
     let rol: String?
 }
 
+/// Pantalla principal que presenta las personas registradas.
 struct ContentView: View {
-    let apiBridge = ApiBridge()
-    let decoder = JSONDecoder()
+    /// Cliente responsable de interactuar con la API.
+    private let apiBridge = ApiBridge()
 
+    /// Decodificador compartido para transformar JSON en modelos.
+    private let decoder = JSONDecoder()
+
+    /// Listado con las personas obtenidas del backend.
     @State private var personas: [Persona] = []
-    @State private var respuesta = ""
 
     var body: some View {
         NavigationStack {
@@ -46,20 +51,25 @@ struct ContentView: View {
                     }
                 }
             }
-            .onAppear {
-                apiBridge.get(endpoint: "/escuela/persona") { response in
-                    guard let text = response,
-                          let jsonData = text.data(using: .utf8) else {
-                        DispatchQueue.main.async { respuesta = "Respuesta nula o inválida" }
-                        return
-                    }
-                    do {
-                        let decoded = try decoder.decode([Persona].self, from: jsonData)
-                        DispatchQueue.main.async { personas = decoded }
-                    } catch {
-                        DispatchQueue.main.async { respuesta = "Malformed JSON: \(error)" }
-                    }
-                }
+            .onAppear(perform: loadPersonas)
+        }
+    }
+}
+
+private extension ContentView {
+    /// Solicita las personas al backend y actualiza el estado local.
+    func loadPersonas() {
+        apiBridge.get(endpoint: "/escuela/persona") { response in
+            guard
+                let text = response,
+                let data = text.data(using: .utf8),
+                let decoded = try? decoder.decode([Persona].self, from: data)
+            else {
+                return
+            }
+
+            DispatchQueue.main.async {
+                personas = decoded
             }
         }
     }
