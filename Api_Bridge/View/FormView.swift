@@ -12,9 +12,9 @@ import SwiftUI
 struct FormView: View {
     @State private var nombre = ""
     @State private var apellido = ""
-    @State private var sexo = "h"
+    @State private var sexo = "Hombre"
     @State private var fechaNacimiento = Date()
-    @State private var rol = 1
+    @State private var rol = "Estudiante"
     @FocusState private var focusedField: Field?
     
     @Environment(\.dismiss) private var dismiss
@@ -25,9 +25,9 @@ struct FormView: View {
         self.persona = persona
         _nombre = State(initialValue: persona?.nombre ?? "")
         _apellido = State(initialValue: persona?.apellido ?? "")
-        _sexo = State(initialValue: FormView.initialSexo(persona?.sexo))
-        _fechaNacimiento = State(initialValue: FormView.initialDate(persona?.fh_nac))
-        _rol = State(initialValue: FormView.initialRol(persona?.rol))
+        _sexo = State(initialValue: FormView.displaySexo(persona?.sexo))   // ← aquí
+        _fechaNacimiento = State(initialValue: FormView.parseDate(persona?.fh_nac) ?? Date())
+        _rol = State(initialValue: persona?.rol ?? "Estudiante")
     }
 
     enum Field { case nombre, apellido }
@@ -87,9 +87,7 @@ struct FormView: View {
                 }
                 LabeledContent("Sexo") {
                     Picker("", selection: $sexo) {
-                        ForEach(sexos, id: \.code) { option in
-                            Text(option.label).tag(option.code)
-                        }
+                        ForEach(sexos, id: \.self, content: Text.init)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -103,9 +101,7 @@ struct FormView: View {
 
             Section("Rol") {
                 Picker("Selecciona tu rol", selection: $rol) {
-                    ForEach(roles, id: \.id) { option in
-                        Text(option.label).tag(option.id)
-                    }
+                    ForEach(roles, id: \.self, content: Text.init)
                 }
             }
         }
