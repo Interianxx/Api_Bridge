@@ -35,21 +35,27 @@ struct FormView: View {
     private let sexos = ["Hombre", "Mujer", "Otro"]
     private let roles = ["Estudiante", "Profesor", "Otro"]
 
-    private var isValid: Bool {
-        !nombre.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !apellido.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    private var nombreLimpio: String { nombre.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var apellidoLimpio: String { apellido.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var isValid: Bool { !nombreLimpio.isEmpty && !apellidoLimpio.isEmpty }
+
+    private static let isoFormatter = ISO8601DateFormatter()
+    private static let displayDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .init(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     private static func parseDate(_ text: String?) -> Date? {
         guard let text = text else { return nil }
-        let iso = ISO8601DateFormatter()
-        if let d = iso.date(from: text) { return d }
+        if let d = isoFormatter.date(from: text) { return d }
         let fmts = ["yyyy-MM-dd'T'HH:mm:ssXXXXX", "yyyy-MM-dd", "dd/MM/yyyy"]
         let df = DateFormatter(); df.locale = .init(identifier: "en_US_POSIX")
         for f in fmts { df.dateFormat = f; if let d = df.date(from: text) { return d } }
         return nil
     }
-    
+
     private static func displaySexo(_ s: String?) -> String {
         switch (s ?? "").lowercased() {
         case "h", "hombre": return "Hombre"
@@ -104,58 +110,7 @@ struct FormView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Guardar") {
-                    // validar
-                    guard !nombre.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                          !apellido.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    else { print("Formulario inválido"); return }
-
-                    func sexoCode(_ s: String) -> String {
-                        switch s.lowercased() { case "hombre": return "h"; case "mujer": return "m"; default: return "o" }
-                    }
-                    func formatDate(_ d: Date) -> String {
-                        let f = DateFormatter(); f.locale = .init(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
-                        return f.string(from: d)
-                    }
-                    func roleId(_ r: String) -> Int {
-                        switch r { case "Estudiante": return 1; case "Profesor": return 2; default: return 3 }
-                    }
-
-                    struct PersonaBody: Encodable {
-                        let id_persona: Int
-                        let nombre: String
-                        let apellido: String
-                        let sexo: String
-                        let fh_nac: String
-                        let id_rol: Int
-                    }
-
-                    let isEdit = (persona?.id != nil)
-                    let body = PersonaBody(
-                        id_persona: isEdit ? persona!.id : 0,
-                        nombre: nombre,
-                        apellido: apellido,
-                        sexo: sexoCode(sexo),
-                        fh_nac: formatDate(fechaNacimiento),
-                        id_rol: roleId(rol)
-                    )
-
-                    guard let json = try? JSONEncoder().encode(body),
-                          let jsonStr = String(data: json, encoding: .utf8) else {
-                        print("Error al codificar JSON"); return
-                    }
-
-                    let api = ApiBridge()
-                    let send: (@escaping (String?) -> Void) -> Void = { done in
-                        if isEdit {
-                            api.patch(endpoint: "/escuela/persona", body: jsonStr, completion: done)
-                        } else {
-                            api.post(endpoint: "/escuela/persona", body: jsonStr, completion: done)
-                        }
-                    }
-
-                    send { _ in
-                        DispatchQueue.main.async { dismiss() } // regresa a la lista
-                    }
+                    handleGuardar()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!isValid)
@@ -165,6 +120,65 @@ struct FormView: View {
         }
 
         .formStyle(.grouped)                    // ← estilo iOS clásico
+    }
+
+    private func handleGuardar() {
+        guard isValid else {
+            print("Formulario inválido")
+            return
+        }
+
+        let isEdit = persona?.id != nil
+        let payload = PersonaBody(
+            id_persona: isEdit ? persona!.id : 0,
+            nombre: nombreLimpio,
+            apellido: apellidoLimpio,
+            sexo: FormView.sexoCode(for: sexo),
+            fh_nac: FormView.displayDateFormatter.string(from: fechaNacimiento),
+            id_rol: FormView.roleId(for: rol)
+        )
+
+        guard let json = try? JSONEncoder().encode(payload),
+              let jsonStr = String(data: json, encoding: .utf8) else {
+            print("Error al codificar JSON")
+            return
+        }
+
+        let api = ApiBridge()
+        let completion: (String?) -> Void = { _ in
+            DispatchQueue.main.async { dismiss() }
+        }
+
+        if isEdit {
+            api.patch(endpoint: "/escuela/persona", body: jsonStr, completion: completion)
+        } else {
+            api.post(endpoint: "/escuela/persona", body: jsonStr, completion: completion)
+        }
+    }
+
+    private static func sexoCode(for display: String) -> String {
+        switch display.lowercased() {
+        case "hombre": return "h"
+        case "mujer": return "m"
+        default: return "o"
+        }
+    }
+
+    private static func roleId(for role: String) -> Int {
+        switch role {
+        case "Estudiante": return 1
+        case "Profesor": return 2
+        default: return 3
+        }
+    }
+
+    private struct PersonaBody: Encodable {
+        let id_persona: Int
+        let nombre: String
+        let apellido: String
+        let sexo: String
+        let fh_nac: String
+        let id_rol: Int
     }
 }
 
